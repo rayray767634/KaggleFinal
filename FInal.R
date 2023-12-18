@@ -27,9 +27,6 @@ my_recipe <- recipe(target~.,data = ottotrain) %>%
   #step_normalize(all_predictors()) %>%
   #step_pca(all_predictors(), threshold = .9)
 
-prep <- prep(my_recipe)
-baked <- bake(prep, new_data = ottotrain)
-View(baked)
 
 nb_model <- naive_Bayes(Laplace = tune(), smoothness = tune()) %>%
   set_mode("classification") %>%
@@ -134,54 +131,6 @@ otto_boost_predictions <- predict(final_wf_boost,
          Class_8=.pred_Class_8,Class_9=.pred_Class_9,)
 
 vroom_write(x=otto_boost_predictions, file="./OTTOBOOSTPreds.csv", delim=",")
-
-## bart
-
-rec <- recipe(target ~ ., data = ottotrain) %>%
-  update_role(id, new_role = "Id") %>%
-  step_mutate_at(all_outcomes(), fn = factor, skip = TRUE)
-
-bart_model <- parsnip::bart(trees=tune()) %>% # BART figures out depth and learn_rate
-  set_engine("dbarts") %>%
-  set_mode("classification")
-
-bart_wf <- workflow() %>%
-  add_recipe(rec) %>%
-  add_model(bart_model)
-
-bart_tuneGrid <- grid_regular(trees(),
-                               levels = 5)
-
-folds <- vfold_cv(ottotrain, v = 5, repeats = 1)
-
-
-CV_results_bart <-bart_wf  %>%
-  tune_grid(resamples = folds,
-            grid = bart_tuneGrid,
-            metrics = metric_set(accuracy))
-
-# Find best tuning parameters
-bestTune_bart <- CV_results_bart %>%
-  select_best("accuracy")
-
-# Finalize workflow and predict
-final_wf_bart <- 
-  bart_wf %>%
-  finalize_workflow(bestTune_bart) %>%
-  fit(data = ottotrain)
-
-# predict
-otto_bart_predictions <- predict(final_wf_bart,
-                                  new_data = ottotest,
-                                  type = "prob") %>%
-  bind_cols(., ottotest) %>% #Bind predictions with test data
-  select(id, .pred_Class_1,.pred_Class_2,.pred_Class_3,.pred_Class_4,.pred_Class_5,
-         .pred_Class_6,.pred_Class_7,.pred_Class_8,.pred_Class_9,) %>% 
-  rename(Class_1=.pred_Class_1,Class_2=.pred_Class_2,Class_3=.pred_Class_3,
-         Class_4=.pred_Class_4,Class_5=.pred_Class_5,Class_6=.pred_Class_6,Class_7=.pred_Class_7,
-         Class_8=.pred_Class_8,Class_9=.pred_Class_9,)
-
-vroom_write(x=otto_bart_predictions, file="./OTTOBARTPreds.csv", delim=",")
 
 # random forest
 
